@@ -1,11 +1,12 @@
-name: Build Extension
+name: Build and Release
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - main
+  release:
+    types:
+      - published
 
 jobs:
   build:
@@ -18,18 +19,29 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'  # or your project's version
+          node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build content script and extension
+      - name: Build extension
         run: node build.js
 
-      - name: Upload built extension (artifact)
-        uses: actions/upload-artifact@v4
+      - name: Zip browser builds (only for release)
+        if: github.event_name == 'release'
+        run: |
+          cd distro
+          zip -r chrome.zip chrome/
+          zip -r firefox.zip firefox/
+          mkdir -p ../packaged
+          mv chrome.zip firefox.zip ../packaged/
+
+      - name: Upload zips to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
         with:
-          name: built-extension
-          path: |
-            distro/chrome/**
-            distro/firefox/**
+          files: |
+            packaged/chrome.zip
+            packaged/firefox.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
